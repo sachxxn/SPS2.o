@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Parking System</title>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="wrap">
+
+        <!-- MODAL -->
+        <div id="modal" class="modal-overlay">
+            <div class="modal-box">
+                <div class="modal-icon" id="mIcon">✅</div>
+                <div class="modal-title" id="mTitle">Success</div>
+                <div class="modal-msg" id="mMsg"></div>
+                <button class="btn-modal" onclick="closeModal()">OK</button>
+            </div>
+        </div>
+
+        <!-- HEADER -->
+        <div class="header">
+            <span class="header-label">⚡ Smart Infrastructure</span>
+            <h1>SMART PARKING</h1>
+            <div class="header-meta">
+                <span><span class="pulse-dot"></span>System Online</span>
+                <!-- Hidden MongoDB badge (Developer only) -->
+                <span class="badge" id="dbBadge" style="display: none;">MongoDB v2.0</span>
+            </div>
+        </div>
+
+        <!-- DB STATUS BAR (Hidden for Users by Default) -->
+        <div id="dbStatus" class="db-status disconnected" style="display: none;">
+            <span class="db-dot"></span>
+            <span id="dbStatusText">Connecting to Database...</span>
+        </div>
+
+        <!-- STATS -->
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-num green" id="statAvail">–</div>
+                <div class="stat-label">Available</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num red" id="statOcc">–</div>
+                <div class="stat-label">Occupied</div>
+            </div>
+            <div class="stat">
+                <div class="stat-num blue">6</div>
+                <div class="stat-label">Total Slots</div>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" id="tabBook" onclick="showTab('book')">📝 Book</button>
+            <button class="tab-btn" id="tabFind" onclick="showTab('find')">🔍 Find Car</button>
+            <button class="tab-btn" id="tabCheckout" onclick="showTab('checkout')">🚪 Exit</button>
+            <button class="tab-btn" id="tabHistory" onclick="showTab('history')">📋 History</button>
+        </div>
+
+        <!-- MESSAGE BOX -->
+        <div id="messageBox"></div>
+
+        <!-- BOOK SECTION -->
+        <div class="card" id="secBook">
+            <h2>📝 Register Your Vehicle</h2>
+            <div class="form-group">
+                <label>Car Number</label>
+                <input type="text" id="carNumber" placeholder="TN01AB1234"
+                    oninput="this.value=this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Mobile Number</label>
+                <input type="tel" id="mobileNumber" placeholder="9876543210" maxlength="10">
+                <div class="hint" id="mobileCount">0 / 10 digits</div>
+            </div>
+
+            <div class="form-group">
+                <label>Select Parking Slot</label>
+                <div id="slotSelector"></div>
+            </div>
+
+            <button class="btn btn-primary" id="bookBtn" onclick="bookSlot()">
+                🎫 Confirm Booking
+            </button>
+        </div>
+
+        <!-- FIND CAR -->
+        <div class="card hidden" id="secFind">
+            <h2>🔍 Find Your Parked Car</h2>
+            <div class="form-group">
+                <label>Car Number</label>
+                <input type="text" id="verifyNumber" placeholder="TN01AB1234"
+                    oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <button class="btn btn-primary" id="findBtn" onclick="findCar()">
+                🗺️ Get Directions
+            </button>
+            <div id="dirResult" class="hidden" style="margin-top:1rem;"></div>
+        </div>
+
+        <!-- CHECKOUT -->
+        <div class="card hidden" id="secCheckout">
+            <h2>🚪 Checkout & Exit</h2>
+            <div class="form-group">
+                <label>Car Number</label>
+                <input type="text" id="checkoutNumber" placeholder="TN01AB1234"
+                    oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <button class="btn btn-danger" id="checkoutBtn" onclick="checkoutCar()">
+                🚪 Checkout & Release Slot
+            </button>
+        </div>
+
+        <!-- HISTORY -->
+        <div class="card hidden" id="secHistory">
+            <h2>📋 Booking History</h2>
+            <div id="historyContent" style="overflow-x:auto;"></div>
+        </div>
+
+        <!-- LIVE PARKING STATUS -->
+        <div class="card">
+            <h2>🅿️ Live Parking Status</h2>
+            <div class="floor-label">🏢 First Floor</div>
+            <div class="slot-grid" id="floor1"></div>
+
+            <div class="floor-label">🏢 Second Floor</div>
+            <div class="slot-grid" id="floor2"></div>
+        </div>
+
+    </div>
+
+    <!-- Main App Script -->
+    <script src="js/app.js"></script>
+
+    <!-- Developer/Admin Visibility Control (Simultaneous Mode) -->
+    <script>
+        // Wait until full page loads (Prevents errors)
+        document.addEventListener("DOMContentLoaded", function () {
+
+            // Detect admin mode using URL
+            // Example: index.html?admin=true
+            const urlParams = new URLSearchParams(window.location.search);
+            const isAdmin = urlParams.get("admin") === "true";
+
+            const dbStatus = document.getElementById("dbStatus");
+            const dbBadge = document.getElementById("dbBadge");
+
+            if (isAdmin) {
+                // Show DB info only for developer
+                if (dbStatus) dbStatus.style.display = "flex";
+                if (dbBadge) dbBadge.style.display = "inline-block";
+                console.log("👨‍💻 Developer Mode: ON (Database Visible)");
+            } else {
+                // Hide DB info for normal users
+                if (dbStatus) dbStatus.style.display = "none";
+                if (dbBadge) dbBadge.style.display = "none";
+                console.log("👤 User Mode: ON (Database Hidden)");
+            }
+
+        });
+    </script>
+
+</body>
+
+</html>
