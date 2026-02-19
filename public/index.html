@@ -39,7 +39,7 @@
             </div>
         </div>
 
-        <!-- DB STATUS BAR (Hidden for Users by Default) -->
+        <!-- DB STATUS BAR (Hidden for Users) -->
         <div id="dbStatus" class="db-status disconnected" style="display: none;">
             <span class="db-dot"></span>
             <span id="dbStatusText">Connecting to Database...</span>
@@ -130,6 +130,42 @@
             <div id="historyContent" style="overflow-x:auto;"></div>
         </div>
 
+        <!-- ADMIN LOGIN PANEL (Hidden by Default) -->
+        <div class="card hidden" id="adminLoginPanel">
+            <h2>🔐 Admin Authentication</h2>
+            <div class="form-group">
+                <label>Enter Admin Password</label>
+                <input type="password" id="adminPassword" placeholder="Enter admin password">
+            </div>
+            <button class="btn btn-primary" onclick="verifyAdmin()">
+                🔓 Unlock Admin Panel
+            </button>
+        </div>
+
+        <!-- ADMIN CONTROL PANEL (Authorized Only) -->
+        <div class="card hidden" id="adminPanel">
+            <h2>🛠️ Admin Vehicle Management</h2>
+
+            <div class="form-group">
+                <label>Force Checkout Vehicle</label>
+                <input type="text" id="adminCarNumber" placeholder="TN01AB1234"
+                    oninput="this.value=this.value.toUpperCase()">
+            </div>
+
+            <button class="btn btn-danger" onclick="forceCheckout()">
+                🚨 Force Checkout & Free Slot
+            </button>
+
+            <hr style="margin:20px 0;">
+
+            <h3>📋 Currently Parked Vehicles</h3>
+            <div id="activeVehicles">Loading...</div>
+
+            <button class="btn btn-warning" style="margin-top:15px;" onclick="refreshActiveVehicles()">
+                🔄 Refresh Active Vehicles
+            </button>
+        </div>
+
         <!-- LIVE PARKING STATUS -->
         <div class="card">
             <h2>🅿️ Live Parking Status</h2>
@@ -145,30 +181,57 @@
     <!-- Main App Script -->
     <script src="js/app.js"></script>
 
-    <!-- Developer/Admin Visibility Control (Simultaneous Mode) -->
+    <!-- FINAL ADMIN + DEVELOPER CONTROL SCRIPT -->
     <script>
-        // Wait until full page loads (Prevents errors)
         document.addEventListener("DOMContentLoaded", function () {
 
-            // Detect admin mode using URL
-            // Example: index.html?admin=true
+            // 🔐 CHANGE THIS PASSWORD (IMPORTANT)
+            const ADMIN_PASSWORD = "smartparking2026";
+
+
+            // Detect admin mode via URL (?admin=true)
             const urlParams = new URLSearchParams(window.location.search);
-            const isAdmin = urlParams.get("admin") === "true";
+            const isAdminLink = urlParams.get("admin") === "true";
 
             const dbStatus = document.getElementById("dbStatus");
             const dbBadge = document.getElementById("dbBadge");
+            const adminLoginPanel = document.getElementById("adminLoginPanel");
+            const adminPanel = document.getElementById("adminPanel");
 
-            if (isAdmin) {
-                // Show DB info only for developer
-                if (dbStatus) dbStatus.style.display = "flex";
-                if (dbBadge) dbBadge.style.display = "inline-block";
-                console.log("👨‍💻 Developer Mode: ON (Database Visible)");
-            } else {
-                // Hide DB info for normal users
-                if (dbStatus) dbStatus.style.display = "none";
-                if (dbBadge) dbBadge.style.display = "none";
-                console.log("👤 User Mode: ON (Database Hidden)");
+            // Show admin login only if admin=true in URL
+            if (isAdminLink) {
+                if (adminLoginPanel) adminLoginPanel.classList.remove("hidden");
+                console.log("🔐 Admin Mode Detected - Awaiting Password");
             }
+
+            // Global Admin Verification Function
+            window.verifyAdmin = function () {
+                const enteredPassword = document.getElementById("adminPassword").value;
+
+                if (enteredPassword === ADMIN_PASSWORD) {
+
+                    // Hide login panel
+                    adminLoginPanel.classList.add("hidden");
+
+                    // Show admin control panel
+                    adminPanel.classList.remove("hidden");
+
+                    // Show developer database status
+                    if (dbStatus) dbStatus.style.display = "flex";
+                    if (dbBadge) dbBadge.style.display = "inline-block";
+
+                    // Load active vehicles if function exists
+                    if (typeof refreshActiveVehicles === "function") {
+                        refreshActiveVehicles();
+                    }
+
+                    alert("✅ Admin Access Granted");
+                    console.log("👨‍💻 Full Admin Access Enabled");
+
+                } else {
+                    alert("❌ Incorrect Password! Access Denied.");
+                }
+            };
 
         });
     </script>
