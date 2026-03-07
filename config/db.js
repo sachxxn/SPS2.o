@@ -5,7 +5,7 @@
 
 const { Pool } = require('pg');
 
-const PG_URI = 'postgresql://postgres.xocgimrvevtmxsoqtpws:sachxxn2005.@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres';
+const PG_URI = process.env.DATABASE_URL || 'postgresql://postgres.xocgimrvevtmxsoqtpws:sachxxn2005.@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres';
 
 const pool = new Pool({
     connectionString: PG_URI,
