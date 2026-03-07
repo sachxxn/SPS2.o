@@ -9,7 +9,7 @@ const path = require('path');
 const cors = require('cors');
 
 // ── IMPORT DATABASE CONNECTION ──
-const { pool, connectDB } = require('./config/db');
+const { pool, connectDB } = require('../config/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 // ── MIDDLEWARE ──
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../public')));
 
 // ── INITIALIZE 6 SLOTS IN DATABASE ──
 async function initSlots() {
@@ -56,9 +56,9 @@ app.use(async (req, res, next) => {
 });
 
 // ── IMPORT ROUTES ──
-const slotRoutes = require('./routes/slots');
-const bookingRoutes = require('./routes/bookings');
-const historyRoutes = require('./routes/history');
+const slotRoutes = require('../routes/slots');
+const bookingRoutes = require('../routes/bookings');
+const historyRoutes = require('../routes/history');
 
 // ── REGISTER ROUTES ──
 app.use('/api/slots', slotRoutes);
@@ -67,7 +67,7 @@ app.use('/api/history', historyRoutes);
 
 // ── SERVE HOMEPAGE ──
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, '../public', 'index.html'));
 });
 
 // ── EXPORT FOR VERCEL (serverless) ──
