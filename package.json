@@ -1,13 +1,10 @@
 {
   "name": "smart-parking-system",
   "version": "2.0.0",
-  "description": "Smart Parking System with MongoDB + Node.js",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "description": "Smart Parking System with MongoDB + Node.js (Vercel Native APIs)",
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "mongoose": "^8.0.0",
     "pg": "^8.20.0"
