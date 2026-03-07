@@ -14,8 +14,6 @@ const { pool, connectDB } = require('./config/db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── CONNECTION WILL BE ESTABLISHED BEFORE STARTING ──
-
 // ── MIDDLEWARE ──
 app.use(cors());
 app.use(express.json());
@@ -41,6 +39,22 @@ async function initSlots() {
     console.log('✅  All 6 parking slots ready in database');
 }
 
+// ── LAZY INIT (Vercel serverless: runs on first request) ──
+let initialized = false;
+app.use(async (req, res, next) => {
+    if (!initialized) {
+        try {
+            await connectDB();
+            await initSlots();
+            initialized = true;
+        } catch (err) {
+            console.error('DB init failed:', err);
+            return res.status(500).json({ success: false, error: 'DB init failed' });
+        }
+    }
+    next();
+});
+
 // ── IMPORT ROUTES ──
 const slotRoutes = require('./routes/slots');
 const bookingRoutes = require('./routes/bookings');
@@ -56,9 +70,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ── START SERVER AFTER DB IS READY ──
-connectDB().then(async () => {
-    await initSlots();
+// ── EXPORT FOR VERCEL (serverless) ──
+module.exports = app;
+
+// ── START SERVER LOCALLY (only when not on Vercel) ──
+if (process.env.VERCEL !== '1') {
     app.listen(PORT, () => {
         console.log('================================================');
         console.log('🚗  Smart Parking Server is RUNNING!');
@@ -66,6 +82,4 @@ connectDB().then(async () => {
         console.log('📋  API:  http://localhost:' + PORT + '/api/slots');
         console.log('================================================');
     });
-}).catch(err => {
-    console.error("Failed to start server", err);
-});
+}
