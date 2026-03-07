@@ -7,24 +7,19 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const mongoose = require('mongoose');
 
 // ── IMPORT DATABASE CONNECTION ──
-const connectDB = require('./config/db');
+const { pool, connectDB } = require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── CONNECT TO MONGODB FIRST ──
-connectDB();
+// ── CONNECTION WILL BE ESTABLISHED BEFORE STARTING ──
 
 // ── MIDDLEWARE ──
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ── IMPORT MODELS ──
-const Slot = require('./models/Slot');
 
 // ── INITIALIZE 6 SLOTS IN DATABASE ──
 async function initSlots() {
@@ -37,11 +32,11 @@ async function initSlots() {
         { slotId: 'F2-S3', floor: 'Second Floor' },
     ];
     for (const s of slotList) {
-        await Slot.findOneAndUpdate(
-            { slotId: s.slotId },
-            { $setOnInsert: s },
-            { upsert: true, new: true }
-        );
+        await pool.query(`
+            INSERT INTO slots ("slotId", "floor")
+            VALUES ($1, $2)
+            ON CONFLICT ("slotId") DO NOTHING;
+        `, [s.slotId, s.floor]);
     }
     console.log('✅  All 6 parking slots ready in database');
 }
@@ -62,7 +57,7 @@ app.get('/', (req, res) => {
 });
 
 // ── START SERVER AFTER DB IS READY ──
-mongoose.connection.once('open', async () => {
+connectDB().then(async () => {
     await initSlots();
     app.listen(PORT, () => {
         console.log('================================================');
@@ -71,4 +66,6 @@ mongoose.connection.once('open', async () => {
         console.log('📋  API:  http://localhost:' + PORT + '/api/slots');
         console.log('================================================');
     });
+}).catch(err => {
+    console.error("Failed to start server", err);
 });

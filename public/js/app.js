@@ -3,12 +3,12 @@
 // File: public/js/app.js
 // ============================================
 
-const API = 'http://localhost:3000/api';
+const API = '/api';
 
-// ── ADMIN MODE DETECTION ──
-// Open as admin: index.html?admin=true
-const urlParams = new URLSearchParams(window.location.search);
-const isAdmin = urlParams.get("admin") === "true";
+// ── ADMIN MODE ──
+const ADMIN_PASSWORD = 'smart123';
+let isAdmin = false;
+let appInitialized = false;
 
 // ── LOCAL SLOT STATE (synced from MongoDB) ──
 let slots = {
@@ -34,14 +34,112 @@ const directions = {
 
 const slotIndexMap = { 'F1-S1': 0, 'F1-S2': 1, 'F1-S3': 2, 'F2-S1': 3, 'F2-S2': 4, 'F2-S3': 5 };
 
-// ── INIT ──
-window.onload = async () => {
+// ── ENTRY SCREEN: ROLE SELECTION ──
+function enterAsCustomer() {
+    document.getElementById('entryScreen').classList.add('hidden');
+    document.getElementById('mainApp').classList.remove('hidden');
+    isAdmin = false;
+    if (!appInitialized) initApp();
+}
 
-    // Hide DB status completely for normal users
-    if (!isAdmin) {
-        const dbStatus = document.getElementById('dbStatus');
-        if (dbStatus) dbStatus.style.display = "none";
+function showAdminLogin() {
+    // Show inline password field on the entry card
+    const loginDiv = document.getElementById('inlineAdminLogin');
+    const arrow = document.getElementById('adminArrow');
+    if (loginDiv.classList.contains('hidden')) {
+        loginDiv.classList.remove('hidden');
+        if (arrow) arrow.style.display = 'none';
+        document.getElementById('entryAdminPassword').focus();
+        // Remove onclick from card so clicking the card doesn't re-trigger
+        document.getElementById('adminCard').onclick = null;
     }
+}
+
+function submitAdminLogin() {
+    const pwd = document.getElementById('entryAdminPassword').value;
+    const errorDiv = document.getElementById('entryAdminError');
+
+    if (pwd === ADMIN_PASSWORD) {
+        // Success — enter as admin
+        isAdmin = true;
+        document.getElementById('entryScreen').classList.add('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+
+        // Show admin panel, badge, DB status
+        const adminPanel = document.getElementById('adminPanel');
+        const adminBadge = document.getElementById('adminBadge');
+        const dbStatus = document.getElementById('dbStatus');
+        const dbBadge = document.getElementById('dbBadge');
+        if (adminPanel) adminPanel.classList.remove('hidden');
+        if (adminBadge) adminBadge.style.display = 'inline-block';
+        if (dbStatus) dbStatus.style.display = 'flex';
+        if (dbBadge) dbBadge.style.display = 'inline-block';
+
+        // Show History Tab for Admin
+        const tabHistory = document.getElementById('tabHistory');
+        if (tabHistory) tabHistory.style.display = 'inline-block';
+
+        if (!appInitialized) initApp();
+        refreshActiveVehicles();
+
+        if (!appInitialized) initApp();
+        refreshActiveVehicles();
+    } else {
+        // Wrong password
+        errorDiv.textContent = '❌ Wrong password! Try again.';
+        errorDiv.classList.remove('hidden');
+        document.getElementById('entryAdminPassword').focus();
+    }
+    // Clear password field in BOTH situations
+    document.getElementById('entryAdminPassword').value = '';
+}
+
+function cancelAdminLogin(e) {
+    e.stopPropagation();
+    const loginDiv = document.getElementById('inlineAdminLogin');
+    const arrow = document.getElementById('adminArrow');
+    const errorDiv = document.getElementById('entryAdminError');
+    loginDiv.classList.add('hidden');
+    errorDiv.classList.add('hidden');
+    if (arrow) arrow.style.display = '';
+    document.getElementById('entryAdminPassword').value = '';
+    // Restore onclick
+    document.getElementById('adminCard').onclick = showAdminLogin;
+}
+
+function backToEntry() {
+    // Reset state and go back to entry
+    isAdmin = false;
+    const dbStatus = document.getElementById('dbStatus');
+    const dbBadge = document.getElementById('dbBadge');
+    const adminBadge = document.getElementById('adminBadge');
+    const adminLoginPanel = document.getElementById('adminLoginPanel');
+    const adminPanel = document.getElementById('adminPanel');
+
+    if (dbStatus) dbStatus.style.display = 'none';
+    if (dbBadge) dbBadge.style.display = 'none';
+    if (adminBadge) adminBadge.style.display = 'none';
+    if (adminLoginPanel) adminLoginPanel.classList.add('hidden');
+    if (adminPanel) adminPanel.classList.add('hidden');
+
+    // Hide History Tab when switching back
+    const tabHistory = document.getElementById('tabHistory');
+    if (tabHistory) tabHistory.style.display = 'none';
+
+    // Default to Book tab
+    showTab('book');
+
+    document.getElementById('mainApp').classList.add('hidden');
+    document.getElementById('entryScreen').classList.remove('hidden');
+
+    // Clear password fields when returning to entry
+    if (document.getElementById('entryAdminPassword')) document.getElementById('entryAdminPassword').value = '';
+    if (document.getElementById('adminPassword')) document.getElementById('adminPassword').value = '';
+}
+
+// ── INIT APP (called once after role selection) ──
+function initApp() {
+    appInitialized = true;
 
     // Mobile input validation
     document.getElementById('mobileNumber').addEventListener('input', function (e) {
@@ -50,9 +148,59 @@ window.onload = async () => {
         document.getElementById('mobileCount').textContent = n + ' / 10 digits' + (n === 10 ? ' ✓' : '');
     });
 
-    await loadSlotsFromDB();
+    loadSlotsFromDB();
     setInterval(loadSlotsFromDB, 5000); // Auto refresh every 5 sec
-};
+
+    // Force clear password fields on load to prevent browser cache/autofill
+    const entryPwd = document.getElementById('entryAdminPassword');
+    const adminPwd = document.getElementById('adminPassword');
+    if (entryPwd) entryPwd.value = '';
+    if (adminPwd) adminPwd.value = '';
+}
+
+// ── ADMIN VERIFICATION ──
+function verifyAdmin() {
+    const enteredPassword = document.getElementById('adminPassword').value;
+
+    if (enteredPassword === ADMIN_PASSWORD) {
+        isAdmin = true;
+
+        // Hide login panel
+        const adminLoginPanel = document.getElementById('adminLoginPanel');
+        if (adminLoginPanel) adminLoginPanel.classList.add('hidden');
+
+        // Show admin control panel
+        const adminPanel = document.getElementById('adminPanel');
+        if (adminPanel) adminPanel.classList.remove('hidden');
+
+        // Show developer database status
+        const dbStatus = document.getElementById('dbStatus');
+        const dbBadge = document.getElementById('dbBadge');
+        if (dbStatus) dbStatus.style.display = "flex";
+        if (dbBadge) dbBadge.style.display = "inline-block";
+
+        // Show admin badge in header
+        const adminBadge = document.getElementById('adminBadge');
+        if (adminBadge) adminBadge.style.display = "inline-block";
+
+        // Show History Tab for Admin
+        const tabHistory = document.getElementById('tabHistory');
+        if (tabHistory) tabHistory.style.display = 'inline-block';
+
+        // Load active vehicles
+        refreshActiveVehicles();
+
+        // Refresh DB status
+        loadSlotsFromDB();
+
+        showModal('Admin Access Granted 🔓', 'Welcome, Administrator! Full control enabled.', '👨‍💻');
+        console.log("👨‍💻 Full Admin Access Enabled");
+    } else {
+        showMessage('❌ Incorrect Password! Access Denied.', 'error');
+    }
+    // Clear password field
+    document.getElementById('adminPassword').value = '';
+}
 
 // ── LOAD SLOTS FROM DATABASE ──
 async function loadSlotsFromDB() {
@@ -205,13 +353,18 @@ async function bookSlot() {
         return;
     }
 
+    if (mobile.length !== 10) {
+        showMessage('⚠️ Mobile number must be exactly 10 digits.', 'error');
+        return;
+    }
+
     setLoading('bookBtn', true, '🎫 Confirm Booking');
 
     try {
         var res = await fetch(API + '/bookings/book', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ carNumber: car, mobile, slot: selectedSlot })
+            body: JSON.stringify({ carNumber: car, mobile, slot: selectedSlot, slotIndex: slotIndexMap[selectedSlot] })
         });
 
         var data = await res.json();
@@ -221,6 +374,7 @@ async function bookSlot() {
             selectedSlot = '';
             document.getElementById('carNumber').value = '';
             document.getElementById('mobileNumber').value = '';
+            document.getElementById('mobileCount').textContent = '0 / 10 digits';
             await loadSlotsFromDB();
         } else {
             showMessage('❌ ' + data.error, 'error');
@@ -232,19 +386,61 @@ async function bookSlot() {
     setLoading('bookBtn', false, '🎫 Confirm Booking');
 }
 
-// ── ADMIN POWER: FORCE CHECKOUT (FOR UNCHECKED VEHICLES) ──
+// ── FIND CAR ──
+async function findCar() {
+    var car = document.getElementById('verifyNumber').value.trim().toUpperCase();
+
+    if (!car) {
+        showMessage('⚠️ Enter car number to search.', 'error');
+        return;
+    }
+
+    setLoading('findBtn', true, '🗺️ Get Directions');
+
+    try {
+        var res = await fetch(API + '/bookings/find', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ carNumber: car })
+        });
+
+        var data = await res.json();
+
+        if (data.success) {
+            var dir = directions[data.slot];
+            var resultDiv = document.getElementById('dirResult');
+            resultDiv.classList.remove('hidden');
+
+            var stepsHtml = dir.steps.map(function (step, i) {
+                return '<div class="dir-card"><span style="color:var(--accent);font-weight:700;">' + (i + 1) + '.</span> ' + step + '</div>';
+            }).join('');
+
+            resultDiv.innerHTML =
+                '<div style="margin-bottom:.75rem;">' +
+                '<strong style="color:var(--accent2);">📍 ' + dir.title + '</strong><br>' +
+                '<small style="color:var(--muted);">Booked at: ' + new Date(data.bookedAt).toLocaleString() + ' | Mobile: ' + data.mobile + '</small>' +
+                '</div>' +
+                stepsHtml;
+
+            hideMessage();
+        } else {
+            document.getElementById('dirResult').classList.add('hidden');
+            showMessage('❌ ' + data.error, 'error');
+        }
+    } catch (err) {
+        showMessage('❌ Server not running.', 'error');
+    }
+
+    setLoading('findBtn', false, '🗺️ Get Directions');
+}
+
+// ── CHECKOUT (USER) ──
 async function checkoutCar() {
     var car = document.getElementById('checkoutNumber').value.trim().toUpperCase();
 
     if (!car) {
         showMessage('⚠️ Enter car number.', 'error');
         return;
-    }
-
-    // Extra admin confirmation
-    if (isAdmin) {
-        const confirmAdmin = confirm("Admin Action: Force checkout this vehicle?");
-        if (!confirmAdmin) return;
     }
 
     setLoading('checkoutBtn', true, '🚪 Checkout');
@@ -272,6 +468,77 @@ async function checkoutCar() {
     setLoading('checkoutBtn', false, '🚪 Checkout & Release Slot');
 }
 
+// ── ADMIN: FORCE CHECKOUT ──
+async function forceCheckout() {
+    var car = document.getElementById('adminCarNumber').value.trim().toUpperCase();
+
+    if (!car) {
+        showMessage('⚠️ Enter car number to force checkout.', 'error');
+        return;
+    }
+
+    if (!confirm('⚠️ Admin Action: Force checkout vehicle ' + car + '?')) return;
+
+    setLoading('forceCheckoutBtn', true, '🚨 Force Checkout & Free Slot');
+
+    try {
+        var res = await fetch(API + '/bookings/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ carNumber: car })
+        });
+
+        var data = await res.json();
+
+        if (data.success) {
+            showModal('Force Checkout Done 🚨', `${car} has been removed. Slot ${data.slot} is free.`, '🚨');
+            document.getElementById('adminCarNumber').value = '';
+            await loadSlotsFromDB();
+            refreshActiveVehicles();
+        } else {
+            showMessage('❌ ' + data.error, 'error');
+        }
+    } catch (err) {
+        showMessage('❌ Cannot connect to server.', 'error');
+    }
+
+    setLoading('forceCheckoutBtn', false, '🚨 Force Checkout & Free Slot');
+}
+
+// ── ADMIN: REFRESH ACTIVE VEHICLES ──
+async function refreshActiveVehicles() {
+    var container = document.getElementById('activeVehicles');
+    if (!container) return;
+
+    container.innerHTML = '<span style="color:var(--muted);">Loading...</span>';
+
+    try {
+        var res = await fetch(API + '/bookings');
+        var data = await res.json();
+
+        if (data.success && data.bookings.length > 0) {
+            var rows = data.bookings.map(function (b) {
+                return '<tr>' +
+                    '<td><b>' + b.carNumber + '</b></td>' +
+                    '<td>' + b.slot + '</td>' +
+                    '<td>' + b.mobile + '</td>' +
+                    '<td>' + new Date(b.bookedAt).toLocaleString() + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            container.innerHTML =
+                '<table class="history-table">' +
+                '<thead><tr><th>Car Number</th><th>Slot</th><th>Mobile</th><th>Booked At</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody>' +
+                '</table>';
+        } else {
+            container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:1rem;">🅿️ No vehicles currently parked.</p>';
+        }
+    } catch (err) {
+        container.innerHTML = '<p style="color:var(--danger);">❌ Cannot connect to server.</p>';
+    }
+}
+
 // ── HISTORY ──
 async function loadHistory() {
     try {
@@ -286,7 +553,7 @@ async function loadHistory() {
                 <td><b>${h.carNumber}</b></td>
                 <td>${h.slot}</td>
                 <td>${h.mobile}</td>
-                <td>${h.action}</td>
+                <td><span class="${h.action === 'BOOKED' ? 'badge-booked' : 'badge-checkout'}">${h.action}</span></td>
             </tr>
         `).join('');
 

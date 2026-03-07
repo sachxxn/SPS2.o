@@ -16,7 +16,57 @@
 </head>
 
 <body>
-    <div class="wrap">
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- ROLE SELECTION ENTRY SCREEN             -->
+    <!-- ═══════════════════════════════════════ -->
+    <div id="entryScreen" class="entry-screen">
+        <div class="entry-container">
+            <span class="header-label">⚡ Smart Infrastructure</span>
+            <h1 class="entry-title">SMART PARKING</h1>
+            <p class="entry-subtitle">Choose how you want to access the system</p>
+
+            <div class="role-cards">
+                <!-- CUSTOMER CARD -->
+                <div class="role-card" onclick="enterAsCustomer()">
+                    <div class="role-icon">🚗</div>
+                    <h2 class="role-name">Customer</h2>
+                    <p class="role-desc">Book a parking slot, find your car & checkout</p>
+                    <div class="role-arrow">→</div>
+                </div>
+
+                <!-- ADMIN CARD -->
+                <div class="role-card role-admin" id="adminCard" onclick="showAdminLogin()">
+                    <div class="role-icon">🛡️</div>
+                    <h2 class="role-name">Admin</h2>
+                    <p class="role-desc">Manage vehicles, force checkout, monitor database & system</p>
+                    <div class="role-arrow" id="adminArrow">→</div>
+
+                    <!-- Inline password (hidden until card is clicked) -->
+                    <div class="inline-admin-login hidden" id="inlineAdminLogin" onclick="event.stopPropagation()">
+                        <input type="password" id="entryAdminPassword" placeholder="Enter password" autocomplete="off"
+                            onkeydown="if(event.key==='Enter') submitAdminLogin()">
+                        <div class="inline-login-btns">
+                            <button class="btn btn-primary" style="flex:1;" onclick="submitAdminLogin()">🔓
+                                Unlock</button>
+                            <button class="btn btn-cancel" style="flex:0 0 auto;"
+                                onclick="cancelAdminLogin(event)">✕</button>
+                        </div>
+                        <div id="entryAdminError" class="inline-error hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="entry-footer">
+                <span class="pulse-dot"></span> System Online — 6 Parking Slots
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════ -->
+    <!-- MAIN APP (Hidden until role selected)  -->
+    <!-- ═══════════════════════════════════════ -->
+    <div class="wrap hidden" id="mainApp">
 
         <!-- MODAL -->
         <div id="modal" class="modal-overlay">
@@ -36,6 +86,8 @@
                 <span><span class="pulse-dot"></span>System Online</span>
                 <!-- Hidden MongoDB badge (Developer only) -->
                 <span class="badge" id="dbBadge" style="display: none;">MongoDB v2.0</span>
+                <span class="admin-badge" id="adminBadge" style="display: none;">🔐 ADMIN</span>
+                <button class="role-switch-btn" onclick="backToEntry()">🔄 Switch Role</button>
             </div>
         </div>
 
@@ -66,7 +118,8 @@
             <button class="tab-btn active" id="tabBook" onclick="showTab('book')">📝 Book</button>
             <button class="tab-btn" id="tabFind" onclick="showTab('find')">🔍 Find Car</button>
             <button class="tab-btn" id="tabCheckout" onclick="showTab('checkout')">🚪 Exit</button>
-            <button class="tab-btn" id="tabHistory" onclick="showTab('history')">📋 History</button>
+            <button class="tab-btn" id="tabHistory" onclick="showTab('history')" style="display: none;">📋
+                History</button>
         </div>
 
         <!-- MESSAGE BOX -->
@@ -135,7 +188,8 @@
             <h2>🔐 Admin Authentication</h2>
             <div class="form-group">
                 <label>Enter Admin Password</label>
-                <input type="password" id="adminPassword" placeholder="Enter admin password">
+                <input type="password" id="adminPassword" placeholder="Enter admin password" autocomplete="off"
+                    onkeydown="if(event.key==='Enter') verifyAdmin()">
             </div>
             <button class="btn btn-primary" onclick="verifyAdmin()">
                 🔓 Unlock Admin Panel
@@ -152,7 +206,7 @@
                     oninput="this.value=this.value.toUpperCase()">
             </div>
 
-            <button class="btn btn-danger" onclick="forceCheckout()">
+            <button class="btn btn-danger" id="forceCheckoutBtn" onclick="forceCheckout()">
                 🚨 Force Checkout & Free Slot
             </button>
 
@@ -180,61 +234,6 @@
 
     <!-- Main App Script -->
     <script src="js/app.js"></script>
-
-    <!-- FINAL ADMIN + DEVELOPER CONTROL SCRIPT -->
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-
-            // 🔐 CHANGE THIS PASSWORD (IMPORTANT)
-            const ADMIN_PASSWORD = "smartparking2026";
-
-
-            // Detect admin mode via URL (?admin=true)
-            const urlParams = new URLSearchParams(window.location.search);
-            const isAdminLink = urlParams.get("admin") === "true";
-
-            const dbStatus = document.getElementById("dbStatus");
-            const dbBadge = document.getElementById("dbBadge");
-            const adminLoginPanel = document.getElementById("adminLoginPanel");
-            const adminPanel = document.getElementById("adminPanel");
-
-            // Show admin login only if admin=true in URL
-            if (isAdminLink) {
-                if (adminLoginPanel) adminLoginPanel.classList.remove("hidden");
-                console.log("🔐 Admin Mode Detected - Awaiting Password");
-            }
-
-            // Global Admin Verification Function
-            window.verifyAdmin = function () {
-                const enteredPassword = document.getElementById("adminPassword").value;
-
-                if (enteredPassword === ADMIN_PASSWORD) {
-
-                    // Hide login panel
-                    adminLoginPanel.classList.add("hidden");
-
-                    // Show admin control panel
-                    adminPanel.classList.remove("hidden");
-
-                    // Show developer database status
-                    if (dbStatus) dbStatus.style.display = "flex";
-                    if (dbBadge) dbBadge.style.display = "inline-block";
-
-                    // Load active vehicles if function exists
-                    if (typeof refreshActiveVehicles === "function") {
-                        refreshActiveVehicles();
-                    }
-
-                    alert("✅ Admin Access Granted");
-                    console.log("👨‍💻 Full Admin Access Enabled");
-
-                } else {
-                    alert("❌ Incorrect Password! Access Denied.");
-                }
-            };
-
-        });
-    </script>
 
 </body>
 

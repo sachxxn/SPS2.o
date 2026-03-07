@@ -1,14 +1,12 @@
 const express = require('express');
 const router  = express.Router();
-const Booking = require('../models/Booking');
-const Slot    = require('../models/Slot');
-const History = require('../models/History');
+const { pool } = require('../config/db');
 
 // GET all active bookings
 router.get('/', async (req, res) => {
   try {
-    const bookings = await Booking.find({ isActive: true }).sort('-bookedAt');
-    res.json({ success: true, bookings });
+    const result = await pool.query('SELECT * FROM bookings WHERE "isActive" = true ORDER BY "bookedAt" DESC');
+    res.json({ success: true, bookings: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -23,32 +21,56 @@ router.post('/book', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
+    const cNum = carNumber.toUpperCase();
+
     // Check car already booked
-    const existing = await Booking.findOne({ carNumber: carNumber.toUpperCase(), isActive: true });
-    if (existing) {
-      return res.status(400).json({ success: false, error: `${carNumber} already booked in slot ${existing.slot}` });
+    const existingResult = await pool.query('SELECT * FROM bookings WHERE "carNumber" = $1 AND "isActive" = true', [cNum]);
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ success: false, error: `${cNum} already booked in slot ${existingResult.rows[0].slot}` });
     }
 
     // Check slot is free
-    const slotDoc = await Slot.findOne({ slotId: slot });
-    if (!slotDoc) {
+    const slotDocResult = await pool.query('SELECT * FROM slots WHERE "slotId" = $1', [slot]);
+    if (slotDocResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Slot not found' });
     }
+    const slotDoc = slotDocResult.rows[0];
     if (slotDoc.occupied) {
       return res.status(400).json({ success: false, error: `Slot ${slot} is already occupied` });
     }
 
-    // Save booking
-    await new Booking({ carNumber: carNumber.toUpperCase(), mobile, slot, slotIndex }).save();
+    // Begin transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Update slot
-    await Slot.findOneAndUpdate({ slotId: slot }, { occupied: true, carNumber: carNumber.toUpperCase(), mobile });
+      // Save booking
+      await client.query(`
+        INSERT INTO bookings ("carNumber", "mobile", "slot", "slotIndex") 
+        VALUES ($1, $2, $3, $4)
+      `, [cNum, mobile, slot, slotIndex || 0]);
 
-    // Log history
-    await new History({ carNumber: carNumber.toUpperCase(), mobile, slot, action: 'BOOKED' }).save();
+      // Update slot
+      await client.query(`
+        UPDATE slots SET occupied = true, "carNumber" = $1, "mobile" = $2 WHERE "slotId" = $3
+      `, [cNum, mobile, slot]);
 
-    console.log(`✅ BOOKED: ${carNumber} → ${slot}`);
-    res.json({ success: true, message: `${carNumber} booked in slot ${slot}` });
+      // Log history
+      await client.query(`
+        INSERT INTO history ("carNumber", "mobile", "slot", "action")
+        VALUES ($1, $2, $3, 'BOOKED')
+      `, [cNum, mobile, slot]);
+
+      await client.query('COMMIT');
+      console.log(`✅ BOOKED: ${cNum} → ${slot}`);
+      res.json({ success: true, message: `${cNum} booked in slot ${slot}` });
+
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -59,10 +81,12 @@ router.post('/book', async (req, res) => {
 router.post('/find', async (req, res) => {
   try {
     const { carNumber } = req.body;
-    const booking = await Booking.findOne({ carNumber: carNumber.toUpperCase(), isActive: true });
-    if (!booking) {
-      return res.status(404).json({ success: false, error: `No car found with number ${carNumber}` });
+    const cNum = carNumber.toUpperCase();
+    const result = await pool.query('SELECT * FROM bookings WHERE "carNumber" = $1 AND "isActive" = true', [cNum]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: `No car found with number ${cNum}` });
     }
+    const booking = result.rows[0];
     res.json({ success: true, slot: booking.slot, mobile: booking.mobile, bookedAt: booking.bookedAt });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -73,24 +97,46 @@ router.post('/find', async (req, res) => {
 router.post('/checkout', async (req, res) => {
   try {
     const { carNumber } = req.body;
-    const booking = await Booking.findOne({ carNumber: carNumber.toUpperCase(), isActive: true });
-    if (!booking) {
-      return res.status(404).json({ success: false, error: `No active booking for ${carNumber}` });
+    const cNum = carNumber.toUpperCase();
+    
+    // Find active booking
+    const bookingResult = await pool.query('SELECT * FROM bookings WHERE "carNumber" = $1 AND "isActive" = true', [cNum]);
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: `No active booking for ${cNum}` });
     }
-
+    
+    const booking = bookingResult.rows[0];
     const slot = booking.slot;
 
-    // Deactivate booking
-    await Booking.findByIdAndUpdate(booking._id, { isActive: false });
+    // Begin transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Free slot
-    await Slot.findOneAndUpdate({ slotId: slot }, { occupied: false, carNumber: '', mobile: '' });
+      // Deactivate booking
+      await client.query('UPDATE bookings SET "isActive" = false WHERE id = $1', [booking.id]);
 
-    // Log history
-    await new History({ carNumber: carNumber.toUpperCase(), mobile: booking.mobile, slot, action: 'CHECKOUT' }).save();
+      // Free slot
+      await client.query(`
+        UPDATE slots SET occupied = false, "carNumber" = '', "mobile" = '' WHERE "slotId" = $1
+      `, [slot]);
 
-    console.log(`✅ CHECKOUT: ${carNumber} ← ${slot} freed`);
-    res.json({ success: true, message: `${carNumber} checked out. Slot ${slot} is free.`, slot });
+      // Log history
+      await client.query(`
+        INSERT INTO history ("carNumber", "mobile", "slot", "action")
+        VALUES ($1, $2, $3, 'CHECKOUT')
+      `, [cNum, booking.mobile, slot]);
+
+      await client.query('COMMIT');
+      console.log(`✅ CHECKOUT: ${cNum} ← ${slot} freed`);
+      res.json({ success: true, message: `${cNum} checked out. Slot ${slot} is free.`, slot });
+
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
