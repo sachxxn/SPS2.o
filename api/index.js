@@ -61,6 +61,11 @@ const bookingRoutes = require('../routes/bookings');
 const historyRoutes = require('../routes/history');
 
 // ── REGISTER ROUTES ──
+// Use path prefixes without '/api' because Vercel strips the folder path in serverless
+app.use('/slots', slotRoutes);
+app.use('/bookings', bookingRoutes);
+app.use('/history', historyRoutes);
+// Keep the original pathing as well for local development compatibility
 app.use('/api/slots', slotRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/history', historyRoutes);
